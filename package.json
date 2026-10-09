@@ -1,0 +1,52 @@
+{
+  "name": "lacervo",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "start": "vite --host 127.0.0.1 --port 5173",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4173",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "test:rules": "firebase emulators:exec --only auth,firestore --project demo-lacervo \"jest --config jest.rules.config.cjs --runInBand\"",
+    "emulators": "firebase emulators:start --only auth,firestore --project demo-lacervo",
+    "seed:emulator": "node scripts/seed-emulator.mjs"
+  },
+  "dependencies": {
+    "@reduxjs/toolkit": "2.13.0",
+    "firebase": "12.19.0",
+    "lucide-react": "1.52.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-redux": "9.3.0",
+    "react-router-dom": "7.18.4"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.29.7",
+    "@babel/preset-env": "^7.29.7",
+    "@babel/preset-react": "^7.29.7",
+    "@babel/preset-typescript": "^7.29.7",
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.7",
+    "@types/jest": "^30.0.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "babel-jest": "^30.5.2",
+    "firebase-tools": "^15.33.0",
+    "jest": "^30.5.2",
+    "jest-environment-jsdom": "^30.5.2",
+    "typescript": "7.0.2",
+    "undici": "^7.30.0",
+    "vite": "8.3.3"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "1.14.5"
+  }
+}

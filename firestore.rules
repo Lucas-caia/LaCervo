@@ -1,0 +1,139 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function copyPath(id) { return /databases/$(database)/documents/copies/$(id); }
+    function loanPath(id) { return /databases/$(database)/documents/loans/$(id); }
+    function accountPath() { return /databases/$(database)/documents/readerAccounts/$(request.auth.uid); }
+    function reservationPath(id) { return /databases/$(database)/documents/reservations/$(request.auth.uid + '_' + id); }
+    function validWork(id) { return id is string && id.matches('OL[0-9]+W'); }
+    function validAuthor(name) { return name is string && name.size() <= 150; }
+    function validBook(book) {
+      return book.keys().hasOnly(['title', 'authors', 'coverId'])
+        && book.title is string && book.title.size() > 0 && book.title.size() <= 300
+        && book.authors is list && book.authors.size() <= 4
+        && (book.authors.size() < 1 || validAuthor(book.authors[0]))
+        && (book.authors.size() < 2 || validAuthor(book.authors[1]))
+        && (book.authors.size() < 3 || validAuthor(book.authors[2]))
+        && (book.authors.size() < 4 || validAuthor(book.authors[3]))
+        && (book.coverId == null || book.coverId is int);
+    }
+    function claimCopy(before, after, workId) {
+      let loan = getAfter(loanPath(after.activeLoanId)).data;
+      return before.activeLoanId == null && after.activeLoanId is string
+        && !exists(loanPath(after.activeLoanId))
+        && (before.queue.size() == 0 || before.queue[0] == request.auth.uid)
+        && after.queue == before.queue.removeAll([request.auth.uid])
+        && loan.userId == request.auth.uid && loan.workId == workId
+        && loan.borrowedAt == request.time && loan.returnedAt == null
+        && (before.queue.size() == 0 || getAfter(reservationPath(workId)).data.status == 'fulfilled');
+    }
+    function releaseCopy(before, after) {
+      return before.activeLoanId is string && after.activeLoanId == null && after.queue == before.queue
+        && get(loanPath(before.activeLoanId)).data.userId == request.auth.uid
+        && getAfter(loanPath(before.activeLoanId)).data.returnedAt == request.time;
+    }
+    function joinQueue(before, after, workId) {
+      let reservation = getAfter(reservationPath(workId)).data;
+      return before.activeLoanId is string && after.activeLoanId == before.activeLoanId
+        && get(loanPath(before.activeLoanId)).data.userId != request.auth.uid
+        && !(request.auth.uid in before.queue) && before.queue.size() < 100
+        && after.queue == before.queue.concat([request.auth.uid])
+        && reservation.userId == request.auth.uid && reservation.workId == workId
+        && reservation.status == 'waiting' && reservation.createdAt == request.time;
+    }
+    function leaveQueue(before, after, workId) {
+      return request.auth.uid in before.queue && after.activeLoanId == before.activeLoanId
+        && after.queue == before.queue.removeAll([request.auth.uid])
+        && getAfter(reservationPath(workId)).data.status == 'cancelled';
+    }
+    match /copies/{workId} {
+      allow read: if signedIn();
+      // Inventory and book metadata are administered through the Firebase console.
+      allow update: if signedIn() && validWork(workId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activeLoanId', 'queue'])
+        && (claimCopy(resource.data, request.resource.data, workId)
+          || releaseCopy(resource.data, request.resource.data)
+          || joinQueue(resource.data, request.resource.data, workId)
+          || leaveQueue(resource.data, request.resource.data, workId));
+      allow create, delete: if false;
+    }
+    function addActiveLoan(before, after) {
+      let added = after.removeAll(before);
+      let loan = getAfter(loanPath(added[0])).data;
+      return added.size() == 1 && after == before.concat(added)
+        && loan.userId == request.auth.uid && loan.borrowedAt == request.time && loan.returnedAt == null
+        && !exists(loanPath(added[0]));
+    }
+    function removeActiveLoan(before, after) {
+      let removed = before.removeAll(after);
+      let loan = getAfter(loanPath(removed[0])).data;
+      return removed.size() == 1 && after == before.removeAll(removed)
+        && loan.userId == request.auth.uid && loan.returnedAt == request.time;
+    }
+    match /readerAccounts/{uid} {
+      allow read: if signedIn() && uid == request.auth.uid;
+      allow create, update: if signedIn() && uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['activeLoanIds'])
+        && request.resource.data.activeLoanIds is list && request.resource.data.activeLoanIds.size() <= 3
+        && request.resource.data.activeLoanIds.toSet().size() == request.resource.data.activeLoanIds.size()
+        && (addActiveLoan(resource == null ? [] : resource.data.activeLoanIds, request.resource.data.activeLoanIds)
+          || (resource != null && removeActiveLoan(resource.data.activeLoanIds, request.resource.data.activeLoanIds)));
+      allow delete: if false;
+    }
+    match /loans/{loanId} {
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['userId', 'workId', 'book', 'borrowedAt', 'returnedAt'])
+        && request.resource.data.userId == request.auth.uid && validWork(request.resource.data.workId)
+        && request.resource.data.book == get(copyPath(request.resource.data.workId)).data.book
+        && request.resource.data.borrowedAt == request.time && request.resource.data.returnedAt == null
+        && getAfter(copyPath(request.resource.data.workId)).data.activeLoanId == loanId
+        && loanId in getAfter(accountPath()).data.activeLoanIds;
+      allow update: if signedIn() && resource.data.userId == request.auth.uid && resource.data.returnedAt == null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['returnedAt'])
+        && request.resource.data.returnedAt == request.time
+        && get(copyPath(resource.data.workId)).data.activeLoanId == loanId
+        && getAfter(copyPath(resource.data.workId)).data.activeLoanId == null
+        && !(loanId in getAfter(accountPath()).data.activeLoanIds);
+      allow delete: if false;
+    }
+    function newReservation(data, id) {
+      let before = get(copyPath(data.workId)).data;
+      let after = getAfter(copyPath(data.workId)).data;
+      return id == request.auth.uid + '_' + data.workId && data.userId == request.auth.uid && validWork(data.workId)
+        && data.keys().hasOnly(['userId', 'workId', 'book', 'createdAt', 'status'])
+        && data.book == before.book && data.createdAt == request.time && data.status == 'waiting'
+        && before.activeLoanId is string && get(loanPath(before.activeLoanId)).data.userId != request.auth.uid
+        && !(request.auth.uid in before.queue) && after.queue == before.queue.concat([request.auth.uid]);
+    }
+    match /reservations/{reservationId} {
+      allow get: if signedIn() && reservationId.matches(request.auth.uid + '_OL[0-9]+W');
+      allow list: if signedIn() && resource.data.userId == request.auth.uid;
+      allow create: if signedIn() && newReservation(request.resource.data, reservationId);
+      allow update: if signedIn() && resource.data.userId == request.auth.uid
+        && ((resource.data.status in ['cancelled', 'fulfilled'] && newReservation(request.resource.data, reservationId))
+          || (resource.data.status == 'waiting'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+            && ((request.resource.data.status == 'cancelled'
+                && getAfter(copyPath(resource.data.workId)).data.queue == get(copyPath(resource.data.workId)).data.queue.removeAll([request.auth.uid]))
+              || (request.resource.data.status == 'fulfilled'
+                && get(copyPath(resource.data.workId)).data.activeLoanId == null
+                && get(copyPath(resource.data.workId)).data.queue[0] == request.auth.uid
+                && getAfter(copyPath(resource.data.workId)).data.activeLoanId is string
+                && getAfter(loanPath(getAfter(copyPath(resource.data.workId)).data.activeLoanId)).data.userId == request.auth.uid
+                && !(request.auth.uid in getAfter(copyPath(resource.data.workId)).data.queue)))));
+      allow delete: if false;
+    }
+    match /readingProgress/{progressId} {
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow create, update: if signedIn() && request.resource.data.userId == request.auth.uid
+        && validWork(request.resource.data.workId) && progressId == request.auth.uid + '_' + request.resource.data.workId
+        && request.resource.data.keys().hasOnly(['userId', 'workId', 'book', 'status', 'updatedAt'])
+        && validBook(request.resource.data.book) && request.resource.data.status in ['not-started', 'reading', 'completed']
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}
