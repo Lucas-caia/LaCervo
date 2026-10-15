@@ -6,39 +6,19 @@ export type Category = 'all' | 'fiction' | 'science' | 'history' | 'philosophy' 
 export type SearchField = 'all' | 'title' | 'author';
 export type Sort = 'relevance' | 'new' | 'old' | 'popular' | 'author';
 export interface SearchInput { query: string; category: Category; field: SearchField; sort: Sort; page: number; }
-export interface BookResults { books: Book[]; total: number; }
+export interface BookResults { books: Book[]; total: number; catalog?: { updatedAt: string; total: number; sources: { wikisource: number; openLibrary: number } }; }
 export const PAGE_SIZE = 12;
 const apiUrl = runtimeConfig.openLibraryUrl;
 
 const object = (value: unknown): Record<string, unknown> =>
   typeof value === 'object' && value !== null ? value as Record<string, unknown> : {};
-const strings = (value: unknown): string[] => Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
-
-export function normalizeBook(value: unknown): Book | null {
-  const row = object(value);
-  const id = typeof row.key === 'string' ? row.key.split('/').pop() || '' : '';
-  if (!/^OL\d+W$/.test(id) || typeof row.title !== 'string') return null;
-  return {
-    id, title: row.title, authors: strings(row.author_name),
-    coverId: typeof row.cover_i === 'number' ? row.cover_i : null,
-    publicationYear: typeof row.first_publish_year === 'number' ? row.first_publish_year : null,
-    subjects: strings(row.subject).slice(0, 6)
-  };
-}
+const strings = (value: unknown): string[] => Array.isArray(value) ? [...new Set(value.filter((item): item is string => typeof item === 'string' && Boolean(item.trim())))] : [];
 
 export function buildSearch(input: SearchInput): string {
-  const params = new URLSearchParams({
-    fields: 'key,title,author_name,cover_i,first_publish_year,subject',
-    limit: String(PAGE_SIZE), page: String(input.page), lang: 'pt'
-  });
-  // Use structured parameters for title/author searches; never concatenate user input into query operators.
-  const term = input.query.trim().slice(0, 120);
-  if (term) params.set(input.field === 'all' ? 'q' : input.field, term);
-  if (input.category !== 'all') params.set('subject', input.category);
-  if (!term && input.category === 'all') params.set('q', 'subject:fiction OR subject:science OR subject:history');
-  if (input.sort !== 'relevance' && input.sort !== 'author') params.set('sort', input.sort === 'popular' ? 'readinglog' : input.sort);
-  return `/search.json?${params}`;
+  return `/api/catalog?${new URLSearchParams({ q: input.query.trim().slice(0, 120), field: input.field, category: input.category, sort: input.sort, page: String(input.page) })}`;
 }
+
+const localQuery = fetchBaseQuery({ baseUrl: window.location.origin, timeout: 15000 });
 
 export const booksApi = createApi({
   reducerPath: 'booksApi',
@@ -46,16 +26,9 @@ export const booksApi = createApi({
   keepUnusedDataFor: 120,
   endpoints: builder => ({
     searchBooks: builder.query<BookResults, SearchInput>({
-      query: buildSearch,
-      transformResponse: (response: unknown, _meta, input) => {
-        const data = object(response);
-        const books = (Array.isArray(data.docs) ? data.docs : []).map(normalizeBook).filter((book): book is Book => book !== null);
-        // Open Library has no global author sort; label this explicitly as a page-level ordering.
-        if (input.sort === 'author') books.sort((a, b) => (a.authors[0] || '\uffff').localeCompare(b.authors[0] || '\uffff', 'pt-BR') || a.title.localeCompare(b.title, 'pt-BR'));
-        return {
-          books,
-          total: typeof data.numFound === 'number' ? data.numFound : typeof data.num_found === 'number' ? data.num_found : 0
-        };
+      async queryFn(input, api, extra) {
+        const result = await localQuery(buildSearch(input), api, extra);
+        return result.error ? { error: result.error } : { data: result.data as BookResults };
       }
     }),
     bookDetails: builder.query<Book, string>({

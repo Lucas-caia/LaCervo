@@ -6,6 +6,9 @@ export interface Book {
   publicationYear: number | null;
   subjects: string[];
   description?: string;
+  source?: 'wikisource';
+  sourceUrl?: string;
+  readable?: boolean;
 }
 
 export interface LibraryCopy {
@@ -39,4 +42,6 @@ export interface Reservation {
 
 export type ReadingStatus = 'not-started' | 'reading' | 'completed';
 export interface ReadingProgress { userId: string; workId: string; status: ReadingStatus; book?: BookSummary; }
+export interface WishItem { id: string; userId: string; workId: string; book: BookSummary; digital: boolean; createdAt: string; }
+export interface AvailabilityNotice { id: string; userId: string; workId: string; eventId: string; book: BookSummary; occurredAt: string; readAt: string | null; }
 export interface Reader { uid: string; email: string | null; displayName: string | null; }

@@ -10,7 +10,7 @@ const commands = () => {
   if (!db) throw new Error('O acesso à biblioteca ainda não está disponível.');
   return createCirculationRepository(db, () => auth?.currentUser?.uid || null);
 };
-export const borrowBook = (id: string) => commands().borrow(id);
+export const borrowBook: ReturnType<typeof createCirculationRepository>['borrow'] = (id, book) => commands().borrow(id, book);
 export const returnLoan = (id: string) => commands().returnLoan(id);
 export const reserveBook = (id: string) => commands().reserve(id);
 export const cancelReservation = (id: string) => commands().cancelReservation(id);
@@ -49,10 +49,4 @@ export function subscribeReaderLibrary(uid: string, next: (library: ReaderLibrar
   return () => stops.forEach(stop => stop());
 }
 
-export function circulationError(error: unknown): string {
-  const code = (error as { code?: string })?.code;
-  if (code === 'permission-denied') return 'Não foi possível autorizar esta operação. Atualize a página e tente novamente.';
-  if (code === 'unavailable') return 'Sem conexão com a biblioteca. Verifique a internet e tente novamente.';
-  if (code === 'aborted') return 'Outro leitor atualizou este livro. Tente novamente.';
-  return error instanceof Error && !code ? error.message : 'Não foi possível concluir. Tente novamente.';
-}
+export { circulationError } from './errors';

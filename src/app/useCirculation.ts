@@ -21,19 +21,19 @@ export function useReaderLibrary() {
   return { ...(state.uid === uid ? state : { uid, data: empty, loading: Boolean(uid), error: '' }), retry: () => setAttempt(value => value + 1) };
 }
 
-export function useCopy(workId: string) {
+export function useCopy(workId: string, enabled = true) {
   const uid = useAppSelector(state => state.session.reader?.uid);
-  const key = `${uid || ''}:${workId}`;
+  const key = `${uid || ''}:${workId}:${enabled}`;
   const [state, setState] = useState({ key: '', copy: null as LibraryCopy | null, loading: true, error: '' });
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
-    setState({ key, copy: null, loading: Boolean(uid), error: '' });
-    if (!uid) return;
+    setState({ key, copy: null, loading: Boolean(uid && enabled), error: '' });
+    if (!uid || !enabled) return;
     let active = true;
     const stop = subscribeCopy(workId, copy => { if (active) setState({ key, copy, loading: false, error: '' }); }, error => {
       if (active) setState({ key, copy: null, loading: false, error: circulationError(error) });
     });
     return () => { active = false; stop(); };
-  }, [uid, workId, key, attempt]);
-  return { ...(state.key === key ? state : { key, copy: null, loading: Boolean(uid), error: '' }), retry: () => setAttempt(value => value + 1) };
+  }, [uid, workId, key, enabled, attempt]);
+  return { ...(state.key === key ? state : { key, copy: null, loading: Boolean(uid && enabled), error: '' }), retry: () => setAttempt(value => value + 1) };
 }

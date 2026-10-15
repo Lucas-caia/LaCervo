@@ -10,7 +10,7 @@ export default function Login() {
   const reader = useAppSelector(state => state.session.reader);
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from;
-  const destination = from && /^\/livros\/OL\d+W$/.test(from) ? from : '/minha-biblioteca';
+  const destination = from && /^\/(livros|ler)\/(OL\d+W|WS[1-9]\d{0,11})$/.test(from) ? from : '/minha-biblioteca';
   const [mode, setMode] = useState<'login' | 'register' | 'reset'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

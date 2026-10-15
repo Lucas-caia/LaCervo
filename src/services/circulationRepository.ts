@@ -1,5 +1,6 @@
 import { arrayRemove, arrayUnion, collection, doc, runTransaction, serverTimestamp, setDoc, type Firestore } from 'firebase/firestore';
 import type { Book, BookSummary, ReadingStatus } from '../domain/models';
+import { initialDigitalCopy, isWikiBook } from '../domain/wikisource';
 
 export function bookSummary(book: Book): BookSummary {
   return { title: book.title.slice(0, 300), authors: book.authors.slice(0, 4).map(name => name.slice(0, 150)), coverId: book.coverId };
@@ -13,28 +14,30 @@ export function createCirculationRepository(db: Firestore, getUserId: () => stri
     return uid;
   }
   function workId(id: string) {
-    if (!/^OL\d+W$/.test(id)) throw new Error('Livro inválido.');
+    if (!/^(OL\d+W|WS[1-9]\d{0,11})$/.test(id)) throw new Error('Livro inválido.');
     return id;
   }
   return {
-    async borrow(id: string) {
+    async borrow(id: string, book?: Book) {
       const uid = userId();
+      if (!isWikiBook(id)) throw new Error('Escolha uma edição da Wikisource para solicitar um novo empréstimo.');
       const copyRef = doc(db, 'copies', workId(id));
       const accountRef = doc(db, 'readerAccounts', uid);
       const loanRef = doc(collection(db, 'loans'));
       const reservationRef = doc(db, 'reservations', `${uid}_${id}`);
       await runTransaction(db, async tx => {
         const [copySnap, accountSnap, reservationSnap] = await Promise.all([tx.get(copyRef), tx.get(accountRef), tx.get(reservationRef)]);
-        if (!copySnap.exists()) throw new Error('Este livro ainda não possui exemplar cadastrado na biblioteca.');
-        const copy = copySnap.data();
+        const copy = copySnap.exists() ? copySnap.data() : book?.id === id ? initialDigitalCopy(book) : null;
+        if (!copy) throw new Error('Este livro ainda não possui exemplar cadastrado na biblioteca.');
         const ids: string[] = accountSnap.data()?.activeLoanIds || [];
-        const queue: string[] = copy.queue;
+        const queue: string[] = copy.queue || [];
         if (copy.activeLoanId) throw new Error('O exemplar já está emprestado. Você pode reservá-lo.');
         if (queue.length && queue[0] !== uid) throw new Error('Este exemplar está aguardando o primeiro leitor da fila.');
         if (ids.length >= 3) throw new Error('Você já tem três empréstimos ativos. Devolva um livro antes de solicitar outro.');
         tx.set(loanRef, { userId: uid, workId: id, book: copy.book, borrowedAt: serverTimestamp(), returnedAt: null });
         tx.set(accountRef, { activeLoanIds: arrayUnion(loanRef.id) }, { merge: true });
-        tx.update(copyRef, { activeLoanId: loanRef.id, queue: arrayRemove(uid) });
+        if (copySnap.exists()) tx.update(copyRef, { activeLoanId: loanRef.id, queue: arrayRemove(uid) });
+        else tx.set(copyRef, { workId: id, book: copy.book, activeLoanId: loanRef.id, queue: [] });
         if (queue[0] === uid && reservationSnap.exists()) tx.update(reservationRef, { status: 'fulfilled' });
       });
     },
@@ -54,7 +57,10 @@ export function createCirculationRepository(db: Firestore, getUserId: () => stri
         if (!accountSnap.data()?.activeLoanIds.includes(id)) throw new Error('O empréstimo foi alterado. Atualize a página.');
         tx.update(accountRef, { activeLoanIds: arrayRemove(id) });
         // Leaving the queue intact gives its first reader exclusive borrowing priority.
-        tx.update(copyRef, { activeLoanId: null });
+        const eventId = doc(collection(copyRef, 'availability')).id;
+        tx.update(copyRef, { activeLoanId: null, availabilityEventId: eventId });
+        tx.set(doc(db, 'copies', loan.workId, 'availability', eventId), { workId: loan.workId, book: copySnap.data()!.book,
+          eligibleUserId: copySnap.data()!.queue[0] || null, createdAt: serverTimestamp() });
       });
     },
     async reserve(id: string) {
@@ -84,7 +90,13 @@ export function createCirculationRepository(db: Firestore, getUserId: () => stri
         const copySnap = await tx.get(copyRef);
         if (reservation.status !== 'waiting' || !copySnap.data()?.queue.includes(uid)) throw new Error('Esta reserva já foi encerrada.');
         tx.update(reservationRef, { status: 'cancelled' });
-        tx.update(copyRef, { queue: arrayRemove(uid) });
+        const copy = copySnap.data()!;
+        const announce = !copy.activeLoanId && copy.queue[0] === uid;
+        const eventId = doc(collection(copyRef, 'availability')).id;
+        tx.update(copyRef, { queue: arrayRemove(uid), ...(announce ? { availabilityEventId: eventId } : {}) });
+        if (announce) tx.set(doc(db, 'copies', reservation.workId, 'availability', eventId), {
+          workId: reservation.workId, book: copy.book, eligibleUserId: copy.queue.filter((value: string) => value !== uid)[0] || null, createdAt: serverTimestamp()
+        });
       });
     },
     async setReadingProgress(book: Book, status: ReadingStatus) {
