@@ -7,3 +7,4 @@ dist/
 *-debug.log
 .firebase/
 coverage/
+server/data/*.tmp

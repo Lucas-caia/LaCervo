@@ -5,16 +5,19 @@
   "type": "module",
   "scripts": {
     "start": "vite --host 127.0.0.1 --port 5173",
-    "build": "tsc -b && vite build",
+    "build": "node scripts/check-catalog.mjs && tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 4173",
     "test": "jest",
     "test:coverage": "jest --coverage",
     "test:rules": "firebase emulators:exec --only auth,firestore --project demo-lacervo \"jest --config jest.rules.config.cjs --runInBand\"",
     "emulators": "firebase emulators:start --only auth,firestore --project demo-lacervo",
-    "seed:emulator": "node scripts/seed-emulator.mjs"
+    "seed:emulator": "node scripts/seed-emulator.mjs",
+    "catalog:sync": "node scripts/sync-catalog.mjs",
+    "verify:deploy": "node scripts/check-deployment.mjs"
   },
   "dependencies": {
     "@reduxjs/toolkit": "2.13.0",
+    "cheerio": "^1.2.0",
     "firebase": "12.19.0",
     "lucide-react": "1.52.0",
     "react": "19.3.0",
@@ -44,7 +47,7 @@
     "vite": "8.3.3"
   },
   "engines": {
-    "node": ">=22.12.0"
+    "node": "24.x"
   },
   "overrides": {
     "@grpc/grpc-js": "1.14.5"
