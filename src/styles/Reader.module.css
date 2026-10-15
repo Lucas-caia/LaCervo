@@ -1,0 +1,483 @@
+/* Small-screen defaults; larger layouts are added progressively. */
+.reader {
+  --reader-bg: #fffdf5;
+  --reader-text: #413c30;
+  max-width: 950px;
+  margin-top: 0;
+  margin-right: auto;
+  margin-bottom: 0;
+  margin-left: auto;
+  border-radius: 6px;
+  padding-top: 0;
+  padding-right: 0;
+  padding-bottom: 12px;
+  padding-left: 0;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #6c715a;
+  font-size: .8rem;
+  margin-bottom: 26px;
+  min-height: 32px;
+}
+
+.back:hover {
+  text-decoration: underline;
+}
+
+.heading {
+  text-align: center;
+  margin-top: 4px;
+  margin-right: auto;
+  margin-bottom: 30px;
+  margin-left: auto;
+  max-width: 650px;
+}
+
+.heading h1 {
+  font-size: 1.65rem;
+  line-height: 1.5;
+  margin-top: 10px;
+  margin-right: 0;
+  margin-bottom: 10px;
+  margin-left: 0;
+}
+
+.heading>p:last-child {
+  font-size: .8rem;
+  color: var(--muted);
+  margin-top: 0;
+  margin-right: 0;
+  margin-bottom: 0;
+  margin-left: 0;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  max-width: 780px;
+  margin-top: 0;
+  margin-right: auto;
+  margin-bottom: 18px;
+  margin-left: auto;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding-top: 8px;
+  padding-right: 0;
+  padding-bottom: 8px;
+  padding-left: 0;
+  color: #627052;
+  font-size: .76rem;
+  flex-wrap: wrap;
+}
+
+.toolbar>span {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  font-size: .7rem;
+}
+
+.toolbar>div {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.toolbar button {
+  width: 36px;
+  min-height: 44px;
+  background: transparent;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  color: #5b654c;
+  min-width: 40px;
+}
+
+.toolbar button:hover {
+  background: #e6e6d6;
+}
+
+.toolbar output {
+  min-width: 24px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.toolbar button:last-child {
+  border-left: 1px solid var(--border);
+  margin-left: 4px;
+  padding-left: 4px;
+  width: 40px;
+}
+
+.paper {
+  background: var(--reader-bg);
+  color: var(--reader-text);
+  border: 1px solid #dcd2bc;
+  box-shadow: 0 3px 8px #40301609,0 18px 40px #40301608;
+  padding-top: 25px;
+  padding-right: 18px;
+  padding-bottom: 25px;
+  padding-left: 18px;
+  margin-top: 0;
+  margin-right: auto;
+  margin-bottom: 0;
+  margin-left: auto;
+  max-width: 780px;
+  min-height: 500px;
+  scroll-margin-top: 20px;
+  border-radius: 3px;
+  position: relative;
+  min-width: 0;
+}
+
+.paper:focus {
+  outline: none;
+}
+
+.runningTitle {
+  display: block;
+  text-align: center;
+  font-size: .58rem;
+  letter-spacing: .08em;
+  color: #81785e;
+  border-bottom: 1px solid #e7dfcd;
+  padding-bottom: 20px;
+  margin-bottom: 27px;
+  overflow-wrap: anywhere;
+}
+
+.prose {
+  font-family: var(--serif);
+  font-size: 1em;
+  line-height: 1.95;
+  overflow-wrap: anywhere;
+}
+
+.prose p {
+  line-height: inherit;
+  margin-top: 0;
+  margin-right: 0;
+  margin-bottom: 1.25em;
+  margin-left: 0;
+  white-space: pre-wrap;
+}
+
+.prose p:last-child {
+  margin-bottom: 0;
+}
+
+.folio {
+  display: block;
+  text-align: center;
+  font-family: var(--serif);
+  font-size: .8rem;
+  color: #82785e;
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid #e7dfcd;
+}
+
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  max-width: 780px;
+  margin-top: 24px;
+  margin-right: auto;
+  margin-bottom: 13px;
+  margin-left: auto;
+  color: #646551;
+  font-size: .8rem;
+  flex-wrap: wrap;
+}
+
+.pagination>button {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding-top: 9px;
+  padding-right: 7px;
+  padding-bottom: 9px;
+  padding-left: 7px;
+  background: var(--paper);
+  color: var(--navy);
+  font-size: .7rem;
+  min-height: 44px;
+}
+
+.pagination label {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  font-size: .7rem;
+  order: 1;
+  flex-basis: 100%;
+  justify-content: center;
+}
+
+.pagination select {
+  padding-top: 5px;
+  padding-right: 8px;
+  padding-bottom: 5px;
+  padding-left: 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--navy);
+  max-width: 65px;
+  font-size: 1rem;
+  min-height: 44px;
+}
+
+.progress {
+  display: block;
+  width: 100%;
+  max-width: 780px;
+  height: 3px;
+  margin-top: 0;
+  margin-right: auto;
+  margin-bottom: 25px;
+  margin-left: auto;
+  border: 0;
+  accent-color: #6f8059;
+  background: #e2dccb;
+}
+
+.progress::-webkit-progress-bar {
+  background: #e2dccb;
+}
+
+.progress::-webkit-progress-value {
+  background: #6f8059;
+}
+
+.credits {
+  font-size: .7rem;
+  color: #766f5d;
+  max-width: 700px;
+  margin-top: 25px;
+  margin-right: auto;
+  margin-bottom: 0;
+  margin-left: auto;
+  text-align: center;
+  line-height: 1.8;
+}
+
+.credits summary {
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  display: inline-block;
+  padding-top: 8px;
+  padding-right: 8px;
+  padding-bottom: 8px;
+  padding-left: 8px;
+}
+
+.credits details p {
+  margin-top: 12px;
+  margin-right: 0;
+  margin-bottom: 12px;
+  margin-left: 0;
+}
+
+.credits a {
+  display: block;
+  color: #61734f;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding-top: 4px;
+  padding-right: 4px;
+  padding-bottom: 4px;
+  padding-left: 4px;
+}
+
+.readerState {
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--muted);
+  font-size: .9rem;
+  padding-top: 30px;
+  padding-right: 30px;
+  padding-bottom: 30px;
+  padding-left: 30px;
+}
+
+.night {
+  --reader-bg: #2d342d;
+  --reader-text: #ede5d1;
+}
+
+.night .paper {
+  border-color: #4b5244;
+  box-shadow: 0 12px 30px #292d2525;
+}
+
+.night .runningTitle,.night .folio {
+  color: #b6baa1;
+  border-color: #515745;
+}
+
+.night .toolbar button[aria-pressed=true] {
+  background: #344b3b;
+  color: #fff;
+}
+
+.heading span {
+  display: block;
+}
+
+.toolbar>span svg {
+  display: none;
+}
+
+.pagination>button svg {
+  width: 15px;
+}
+
+.chapterNavigation {
+  display: flex;
+  align-items: stretch;
+  gap: 7px;
+  max-width: 780px;
+  margin-top: 0;
+  margin-right: auto;
+  margin-bottom: 20px;
+  margin-left: auto;
+  font-size: .8rem;
+  color: #646551;
+  flex-direction: column;
+}
+
+.chapterNavigation select {
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  padding-top: 10px;
+  padding-right: 10px;
+  padding-bottom: 10px;
+  padding-left: 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--navy);
+  font-size: 1rem;
+  min-height: 44px;
+}
+
+@media (min-width: 601px) {
+  .heading h1 {
+    font-size: clamp(1.6rem,3vw,2.4rem);
+  }
+
+  .toolbar {
+    gap: 20px;
+    flex-wrap: nowrap;
+  }
+
+  .toolbar>span {
+    gap: 8px;
+    font-size: inherit;
+  }
+
+  .toolbar>div {
+    gap: 4px;
+  }
+
+  .toolbar button {
+    width: 42px;
+    min-height: 42px;
+  }
+
+  .toolbar button:last-child {
+    margin-left: 10px;
+    padding-left: 10px;
+    width: 48px;
+  }
+
+  .paper {
+    padding-top: 35px;
+    padding-right: clamp(24px,5vw,70px);
+    padding-bottom: 30px;
+    padding-left: clamp(24px,5vw,70px);
+    min-height: 650px;
+  }
+
+  .runningTitle {
+    font-size: .65rem;
+    padding-bottom: 25px;
+    margin-bottom: 35px;
+  }
+
+  .pagination {
+    gap: 15px;
+    flex-wrap: nowrap;
+  }
+
+  .pagination>button {
+    gap: 6px;
+    padding-top: 10px;
+    padding-right: 15px;
+    padding-bottom: 10px;
+    padding-left: 15px;
+    font-size: .8rem;
+  }
+
+  .pagination label {
+    gap: 8px;
+    font-size: inherit;
+    order: 0;
+    flex-basis: auto;
+    justify-content: flex-start;
+  }
+
+  .pagination select {
+    max-width: 85px;
+  }
+
+  .credits {
+    font-size: .72rem;
+  }
+
+  .heading span {
+    display: inline;
+  }
+
+  .toolbar>span svg {
+    display: inline;
+  }
+
+  .pagination>button svg {
+    width: 18px;
+  }
+
+  .chapterNavigation {
+    align-items: center;
+    gap: 14px;
+    flex-direction: row;
+  }
+}
+
+@media (min-width: 741px) {
+  .pagination select {
+    font-size: .8rem;
+  }
+  .chapterNavigation select {
+    font-size: .8rem;
+  }
+}
