@@ -1,23 +1,29 @@
-import { describe, expect, it } from '@jest/globals';
-import { buildSearch, normalizeBook } from './books';
+import { afterEach, describe, expect, it, jest } from '@jest/globals';
+import { booksApi, buildSearch } from './books';
+import { store } from '../app/store';
 
-describe('Open Library adapter', () => {
-  it('handles absent author, cover and publication metadata', () => {
-    expect(normalizeBook({ key: '/works/OL1W', title: 'Book' })).toMatchObject({ id: 'OL1W', authors: [], coverId: null, publicationYear: null });
-    expect(normalizeBook({ key: '/unknown', title: 'Book' })).toBeNull();
-    expect(normalizeBook({ key: '/works/OL1W' })).toBeNull();
-  });
-  it('keeps author searches, filters and pagination in structured parameters', () => {
-    const url = new URL(buildSearch({ query: 'Machado & Assis', category: 'fiction', field: 'author', sort: 'new', page: 2 }), 'https://openlibrary.org');
-    expect(url.searchParams.get('author')).toBe('Machado & Assis');
-    expect(url.searchParams.get('subject')).toBe('fiction');
+afterEach(() => { store.dispatch(booksApi.util.resetApiState()); jest.mocked(fetch).mockReset(); });
+
+describe('indexed catalog adapter', () => {
+  it('encodes filters and pagination as data', () => {
+    const url = new URL(buildSearch({ query: 'Machado & Assis', category: 'fiction', field: 'author', sort: 'new', page: 2 }), 'https://lacervo.test');
+    expect(url.pathname).toBe('/api/catalog');
+    expect(url.searchParams.get('q')).toBe('Machado & Assis');
+    expect(url.searchParams.get('field')).toBe('author');
+    expect(url.searchParams.get('category')).toBe('fiction');
     expect(url.searchParams.get('page')).toBe('2');
-    expect(url.searchParams.get('limit')).toBe('12');
     expect(url.searchParams.get('sort')).toBe('new');
   });
-  it('uses the supported global reading-log order and avoids an unsupported author API sort', () => {
-    const input = { query: 'Machado', category: 'all', field: 'all', page: 1 } as const;
-    expect(new URL(buildSearch({ ...input, sort: 'popular' }), 'https://openlibrary.org').searchParams.get('sort')).toBe('readinglog');
-    expect(new URL(buildSearch({ ...input, sort: 'author' }), 'https://openlibrary.org').searchParams.has('sort')).toBe(false);
+  it('requests global author sorting from the index', () => {
+    const url = new URL(buildSearch({ query: '', category: 'all', field: 'all', page: 2, sort: 'author' }), 'https://lacervo.test');
+    expect(url.searchParams.get('sort')).toBe('author');
+    expect(url.searchParams.get('page')).toBe('2');
+  });
+  it('removes duplicate and empty source subjects before rendering keyed tags', async () => {
+    jest.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ title: 'Uma obra', subjects: ['History', 'History', '', 'Science'] }), { headers: { 'Content-Type': 'application/json' } }));
+    const request = store.dispatch(booksApi.endpoints.bookDetails.initiate('OL123W'));
+    const book = await request.unwrap();
+    expect(book.subjects).toEqual(['History', 'Science']);
+    request.unsubscribe();
   });
 });

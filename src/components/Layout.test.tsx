@@ -19,6 +19,13 @@ beforeEach(() => {
   jest.mocked(onAuthStateChanged).mockImplementation((_auth, next) => { listener = next as typeof listener; return stop; });
 });
 describe('session layout', () => {
+  it('keeps the author credits collapsed in the footer until About is opened', async () => {
+    open();
+    expect(screen.getByText('Criado por: Caiã Lucas Leite Oliveira')).not.toBeVisible();
+    await userEvent.setup().click(screen.getByText('Sobre'));
+    expect(screen.getByText('Criado por: Caiã Lucas Leite Oliveira')).toBeVisible();
+    expect(screen.getByText('Projeto da Jala University')).toBeVisible();
+  });
   it('updates the header after authentication and clears it on successful logout', async () => {
     jest.mocked(signOut).mockImplementation(async () => { listener(null); });
     const view = open();

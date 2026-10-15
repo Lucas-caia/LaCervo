@@ -8,13 +8,30 @@ import { booksApi } from '../services/books';
 import Catalog from './Catalog';
 
 const fetchMock = jest.mocked(fetch);
-const payload = { numFound: 1, docs: [{ key: '/works/OL1003040W', title: 'Dom Casmurro', author_name: ['Machado de Assis'] }] };
+const payload = { total: 1, books: [{ id: 'OL1003040W', title: 'Dom Casmurro', authors: ['Machado de Assis'], subjects: [], coverId: null, publicationYear: null }] };
 const response = (value: unknown) => new Response(JSON.stringify(value), { headers: { 'Content-Type': 'application/json' } });
-function open() { return render(<Provider store={store}><MemoryRouter><Catalog /></MemoryRouter></Provider>); }
+function open(path = '/') { return render(<Provider store={store}><MemoryRouter initialEntries={[path]}><Catalog /></MemoryRouter></Provider>); }
 beforeEach(() => { fetchMock.mockReset(); });
 afterEach(() => { cleanup(); store.dispatch(booksApi.util.resetApiState()); });
 
 describe('catalog REST integration', () => {
+  it('recovers an out-of-range bookmarked page and preserves the search filters', async () => {
+    fetchMock.mockResolvedValueOnce(response({ total: 1, books: [] })).mockResolvedValueOnce(response(payload));
+    open('/?q=Dom&field=title&sort=author&page=999');
+    expect(await screen.findByRole('heading', { name: 'Dom Casmurro' })).toBeInTheDocument();
+    const url = new URL((fetchMock.mock.calls.at(-1)![0] as Request).url);
+    expect(url.searchParams.get('page')).toBe('1');
+    expect(url.searchParams.get('q')).toBe('Dom');
+    expect(url.searchParams.get('sort')).toBe('author');
+    expect(screen.getByRole('heading', { name: 'Resultados da busca' })).toHaveFocus();
+  });
+  it('returns keyboard focus to the new results after pagination', async () => {
+    fetchMock.mockResolvedValueOnce(response({ ...payload, total: 13 })).mockResolvedValueOnce(response({ total: 13, books: [{ ...payload.books[0], id: 'OL2W', title: 'Nova página' }] }));
+    open(); await screen.findByRole('heading', { name: 'Dom Casmurro' });
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Próxima' }));
+    await screen.findByRole('heading', { name: 'Nova página' });
+    expect(screen.getByRole('heading', { name: 'Explore novas leituras' })).toHaveFocus();
+  });
   it('shows loading and renders the books returned by the REST API', async () => {
     let resolve!: (value: Response) => void;
     fetchMock.mockImplementation(() => new Promise(complete => { resolve = complete; })); open();
@@ -23,12 +40,12 @@ describe('catalog REST integration', () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     resolve(response(payload));
     expect(await screen.findByRole('heading', { name: 'Dom Casmurro' })).toBeInTheDocument();
-    expect(screen.getByText('Machado de Assis')).toBeInTheDocument();
+    expect(screen.getAllByText('Machado de Assis').length).toBeGreaterThan(0);
   });
   it('submits a search and shows an empty result instead of stale books', async () => {
     fetchMock.mockResolvedValueOnce(response(payload)); open();
     await screen.findByRole('heading', { name: 'Dom Casmurro' });
-    fetchMock.mockResolvedValueOnce(response({ numFound: 0, docs: [] }));
+    fetchMock.mockResolvedValueOnce(response({ total: 0, books: [] }));
     const user = userEvent.setup(); await user.type(screen.getByRole('textbox', { name: 'Buscar livros' }), 'Livro inexistente');
     await user.click(screen.getByRole('button', { name: 'Buscar' }));
     expect(await screen.findByRole('heading', { name: 'Nenhum livro encontrado' })).toBeInTheDocument();
