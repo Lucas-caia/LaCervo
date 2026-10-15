@@ -6,7 +6,7 @@ service cloud.firestore {
     function loanPath(id) { return /databases/$(database)/documents/loans/$(id); }
     function accountPath() { return /databases/$(database)/documents/readerAccounts/$(request.auth.uid); }
     function reservationPath(id) { return /databases/$(database)/documents/reservations/$(request.auth.uid + '_' + id); }
-    function validWork(id) { return id is string && id.matches('OL[0-9]+W'); }
+    function validWork(id) { return id is string && id.matches('(OL[0-9]+W|WS[1-9][0-9]{0,11})'); }
     function validAuthor(name) { return name is string && name.size() <= 150; }
     function validBook(book) {
       return book.keys().hasOnly(['title', 'authors', 'coverId'])
@@ -47,16 +47,33 @@ service cloud.firestore {
         && after.queue == before.queue.removeAll([request.auth.uid])
         && getAfter(reservationPath(workId)).data.status == 'cancelled';
     }
+    function eventPath(workId, eventId) { return /databases/$(database)/documents/copies/$(workId)/availability/$(eventId); }
+    function sameEvent(before, after) { return before.get('availabilityEventId', null) == after.get('availabilityEventId', null); }
+    function publishAvailability(before, after, workId) {
+      let eventId = after.availabilityEventId;
+      let event = getAfter(eventPath(workId, eventId)).data;
+      return eventId is string && eventId != before.get('availabilityEventId', null)
+        && !exists(eventPath(workId, eventId)) && after.activeLoanId == null
+        && event.workId == workId && event.book == after.book && event.createdAt == request.time
+        && event.eligibleUserId == (after.queue.size() == 0 ? null : after.queue[0]);
+    }
     match /copies/{workId} {
       allow read: if signedIn();
-      // Inventory and book metadata are administered through the Firebase console.
+      // Dynamic Wikisource inventory is created only with its atomic first loan.
+      allow create: if signedIn() && workId.matches('WS[1-9][0-9]{0,11}')
+        && request.resource.data.keys().hasOnly(['workId', 'book', 'activeLoanId', 'queue'])
+        && request.resource.data.workId == workId && validBook(request.resource.data.book)
+        && request.resource.data.queue == []
+        && claimCopy({'activeLoanId': null, 'queue': []}, request.resource.data, workId);
       allow update: if signedIn() && validWork(workId)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activeLoanId', 'queue'])
-        && (claimCopy(resource.data, request.resource.data, workId)
-          || releaseCopy(resource.data, request.resource.data)
-          || joinQueue(resource.data, request.resource.data, workId)
-          || leaveQueue(resource.data, request.resource.data, workId));
-      allow create, delete: if false;
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activeLoanId', 'queue', 'availabilityEventId'])
+        && ((claimCopy(resource.data, request.resource.data, workId) && sameEvent(resource.data, request.resource.data))
+          || (releaseCopy(resource.data, request.resource.data) && publishAvailability(resource.data, request.resource.data, workId))
+          || (joinQueue(resource.data, request.resource.data, workId) && sameEvent(resource.data, request.resource.data))
+          || (leaveQueue(resource.data, request.resource.data, workId)
+            && (resource.data.activeLoanId == null && resource.data.queue[0] == request.auth.uid
+              ? publishAvailability(resource.data, request.resource.data, workId) : sameEvent(resource.data, request.resource.data))));
+      allow delete: if false;
     }
     function addActiveLoan(before, after) {
       let added = after.removeAll(before);
@@ -85,8 +102,8 @@ service cloud.firestore {
       allow read: if signedIn() && resource.data.userId == request.auth.uid;
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly(['userId', 'workId', 'book', 'borrowedAt', 'returnedAt'])
-        && request.resource.data.userId == request.auth.uid && validWork(request.resource.data.workId)
-        && request.resource.data.book == get(copyPath(request.resource.data.workId)).data.book
+        && request.resource.data.userId == request.auth.uid && request.resource.data.workId.matches('WS[1-9][0-9]{0,11}')
+        && request.resource.data.book == getAfter(copyPath(request.resource.data.workId)).data.book
         && request.resource.data.borrowedAt == request.time && request.resource.data.returnedAt == null
         && getAfter(copyPath(request.resource.data.workId)).data.activeLoanId == loanId
         && loanId in getAfter(accountPath()).data.activeLoanIds;
@@ -108,7 +125,7 @@ service cloud.firestore {
         && !(request.auth.uid in before.queue) && after.queue == before.queue.concat([request.auth.uid]);
     }
     match /reservations/{reservationId} {
-      allow get: if signedIn() && reservationId.matches(request.auth.uid + '_OL[0-9]+W');
+      allow get: if signedIn() && reservationId.matches(request.auth.uid + '_(OL[0-9]+W|WS[1-9][0-9]{0,11})');
       allow list: if signedIn() && resource.data.userId == request.auth.uid;
       allow create: if signedIn() && newReservation(request.resource.data, reservationId);
       allow update: if signedIn() && resource.data.userId == request.auth.uid
@@ -132,6 +149,53 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['userId', 'workId', 'book', 'status', 'updatedAt'])
         && validBook(request.resource.data.book) && request.resource.data.status in ['not-started', 'reading', 'completed']
         && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+    }
+    // Immutable availability events are committed with the return or priority-changing cancellation.
+    match /copies/{workId}/availability/{eventId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && validWork(workId)
+        && request.resource.data.keys().hasOnly(['workId', 'book', 'eligibleUserId', 'createdAt'])
+        && validBook(request.resource.data.book)
+        && getAfter(copyPath(workId)).data.availabilityEventId == eventId
+        && publishAvailability(get(copyPath(workId)).data, getAfter(copyPath(workId)).data, workId)
+        && (releaseCopy(get(copyPath(workId)).data, getAfter(copyPath(workId)).data)
+          || (get(copyPath(workId)).data.activeLoanId == null
+            && get(copyPath(workId)).data.queue[0] == request.auth.uid
+            && leaveQueue(get(copyPath(workId)).data, getAfter(copyPath(workId)).data, workId)));
+      allow update, delete: if false;
+    }
+    match /wishlist/{wishId} {
+      allow get: if signedIn() && (resource == null || resource.data.userId == request.auth.uid);
+      allow list: if signedIn() && resource.data.userId == request.auth.uid;
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid
+        && validWork(request.resource.data.workId) && wishId == request.auth.uid + '_' + request.resource.data.workId
+        && request.resource.data.keys().hasOnly(['userId', 'workId', 'book', 'digital', 'createdAt'])
+        && validBook(request.resource.data.book) && request.resource.data.digital is bool
+        && (!request.resource.data.digital || request.resource.data.workId.matches('WS[1-9][0-9]{0,11}'))
+        && request.resource.data.createdAt == request.time;
+      allow delete: if signedIn() && resource.data.userId == request.auth.uid;
+      allow update: if false;
+    }
+    function validNotification(data, noticeId) {
+      let wish = get(/databases/$(database)/documents/wishlist/$(request.auth.uid + '_' + data.workId)).data;
+      let event = get(eventPath(data.workId, data.eventId)).data;
+      return data.keys().hasOnly(['userId', 'workId', 'eventId', 'book', 'occurredAt', 'createdAt', 'readAt'])
+        && data.userId == request.auth.uid && data.workId.matches('WS[1-9][0-9]{0,11}')
+        && data.eventId is string && data.eventId.matches('[A-Za-z0-9_-]{1,128}')
+        && noticeId == request.auth.uid + '_' + data.workId + '_' + data.eventId
+        && wish.userId == request.auth.uid && wish.digital == true && wish.createdAt <= event.createdAt
+        && (event.eligibleUserId == null || event.eligibleUserId == request.auth.uid)
+        && event.workId == data.workId && event.book == data.book && event.createdAt == data.occurredAt
+        && data.createdAt == request.time && data.readAt == null;
+    }
+    match /notifications/{noticeId} {
+      allow get: if signedIn() && (resource == null || resource.data.userId == request.auth.uid);
+      allow list: if signedIn() && resource.data.userId == request.auth.uid;
+      allow create: if signedIn() && validNotification(request.resource.data, noticeId);
+      allow update: if signedIn() && resource.data.userId == request.auth.uid && resource.data.readAt == null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt'])
+        && request.resource.data.readAt == request.time;
       allow delete: if false;
     }
     match /{document=**} { allow read, write: if false; }
