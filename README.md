@@ -16,8 +16,6 @@
   <a href="#testes">Testes</a>
 </p>
 
-![Estante digital do LaCervo com interface vintage e o símbolo do cervo com livro](docs/images/estante.jpg)
-
 ## Sobre o projeto
 
 O **LaCervo** é uma aplicação web desenvolvida por **Caiã Lucas Leite Oliveira** como projeto final de Web Development da **Jala University**. Permite explorar um catálogo de livros, consultar detalhes, realizar empréstimos virtuais, reservar exemplares, organizar uma lista de desejos e acompanhar o histórico e o progresso de leitura.
@@ -41,7 +39,7 @@ Acesse **http://127.0.0.1:5173**. O comando inicia a interface e a API local. Pa
 
 O índice já acompanha o projeto. Para atualizar os metadados pelas APIs públicas, execute `npm run catalog:sync`, reinicie a aplicação e inclua `server/data/catalog.json` na próxima publicação. A sincronização não exige credenciais e não baixa o texto dos livros.
 
-Para atualizar o site e as regras do Firebase, consulte o [guia de publicação](docs/PUBLICACAO.md).
+Na Vercel, atualize o site pelo push na branch de produção conectada e confira as APIs com `npm run verify:deploy`. As regras do Firestore devem ser publicadas separadamente no Firebase.
 
 ## Tecnologias
 
